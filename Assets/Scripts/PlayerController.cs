@@ -9,6 +9,7 @@ public class PlayerController : MonoBehaviour
     private Vector2 direction;
     private Animator anim;
     private CinemachineVirtualCamera cm;
+    private Vector2 moveDirection;
 
     [Header("Player Statistics")]
     public float speedMovement = 10;
@@ -27,6 +28,7 @@ public class PlayerController : MonoBehaviour
     public bool dashing = false;
     public bool hitingGround;
     public bool shaking = false;
+    public bool isAttacking = false;
 
     private void Awake()
     {
@@ -48,6 +50,16 @@ public class PlayerController : MonoBehaviour
         FloorChecker();
     }
 
+    private void FloorChecker()
+    {
+        onGround = Physics2D.OverlapCircle((Vector2)transform.position + downPosition, collisionRadius, layerFloor);
+    }
+
+    /***********************
+     *                     *
+     *   Camera settings   *
+     *                     *
+     ***********************/
     private IEnumerator ShakeCamera()
     {
         shaking = true;
@@ -73,7 +85,14 @@ public class PlayerController : MonoBehaviour
         cinemachineBasicMultiChannelPerlin.m_AmplitudeGain = 0;
         shaking = false;
     }
+    // END camera settings
 
+
+    /************
+     *          *
+     *   Dash   *
+     *          *
+     ************/
     private void Dash(float x, float y)
     {
         anim.SetBool("dash", true);
@@ -124,14 +143,14 @@ public class PlayerController : MonoBehaviour
     {
         anim.SetBool("dash", false);
     }
+    // END: Dash
 
-    private void HitGround()
-    {
-        canDash = false;
-        dashing = false;
-        anim.SetBool("jump", false);
-    }
 
+    /************************
+     *                      * 
+     *   Player movements   *
+     *                      *
+     ************************/
     private void Move()
     {
         float x = Input.GetAxis("Horizontal");
@@ -141,8 +160,11 @@ public class PlayerController : MonoBehaviour
         float yRaw = Input.GetAxisRaw("Vertical");
 
         direction = new Vector2(x, y);
+        Vector2 directionRaw = new Vector2(xRaw, yRaw);
 
         Walk();
+
+        Attack(AttackDirection(moveDirection, directionRaw));
 
         JumpUpgraded();
 
@@ -196,32 +218,6 @@ public class PlayerController : MonoBehaviour
                 JumpEnded();
             }
         }
-        
-    }
-
-    public void JumpEnded()
-    {
-        anim.SetBool("jump", false);
-    }
-
-    private void Jump()
-    {
-        rb.velocity = new Vector2(rb.velocity.x, 0);
-        rb.velocity += Vector2.up * jumpStrength;
-    }
-
-    private void JumpUpgraded()
-    {
-        if (rb.velocity.y < 0) {
-            rb.velocity += Vector2.up * Physics2D.gravity.y * (2.5f - 1) * Time.deltaTime;
-        } else if (rb.velocity.y > 0 && !Input.GetKey(KeyCode.Space)) {
-            rb.velocity += Vector2.up * Physics2D.gravity.y * (2.0f - 1) * Time.deltaTime;
-        }
-    }
-
-    private void FloorChecker()
-    {
-        onGround = Physics2D.OverlapCircle((Vector2)transform.position + downPosition, collisionRadius, layerFloor);
     }
 
     private void Walk()
@@ -243,18 +239,95 @@ public class PlayerController : MonoBehaviour
 
                 if (direction.x < 0 && transform.localScale.x > 0)
                 {
+                    moveDirection = AttackDirection(Vector2.left, direction);
                     transform.localScale = new Vector3(-transform.localScale.x, transform.localScale.y, transform.localScale.z);
                 }
                 else if (direction.x > 0 && transform.localScale.x < 0)
                 {
+                    moveDirection = AttackDirection(Vector2.right, direction);
                     transform.localScale = new Vector3(Mathf.Abs(transform.localScale.x), transform.localScale.y, transform.localScale.z);
                 }
             }
             else
             {
+                if (direction.y > 0 && direction.x == 0)
+                {
+                    moveDirection = AttackDirection(direction, Vector2.up);
+                }
                 anim.SetBool("walk", false);
             }
         }
-        
+
     }
+    // END: Player movements
+
+    /************
+     *          *
+     *   Jump   *
+     *          *
+     ************/
+    public void JumpEnded()
+    {
+        anim.SetBool("jump", false);
+    }
+
+    private void Jump()
+    {
+        rb.velocity = new Vector2(rb.velocity.x, 0);
+        rb.velocity += Vector2.up * jumpStrength;
+    }
+
+    private void JumpUpgraded()
+    {
+        if (rb.velocity.y < 0) {
+            rb.velocity += Vector2.up * Physics2D.gravity.y * (2.5f - 1) * Time.deltaTime;
+        } else if (rb.velocity.y > 0 && !Input.GetKey(KeyCode.Space)) {
+            rb.velocity += Vector2.up * Physics2D.gravity.y * (2.0f - 1) * Time.deltaTime;
+        }
+    }
+
+    private void HitGround()
+    {
+        canDash = false;
+        dashing = false;
+        anim.SetBool("jump", false);
+    }
+    // END: Jump
+
+    /**************
+     *            *
+     *   Attack   *
+     *            *
+     **************/
+    private void Attack(Vector2 direction)
+    {
+        if (Input.GetKeyDown(KeyCode.Z))
+        {
+            if (!isAttacking && !dashing)
+            {
+                isAttacking = true;
+                anim.SetFloat("attackX", direction.x);
+                anim.SetFloat("attackY", direction.y);
+
+                anim.SetBool("attack", true);
+            }
+        }
+    }
+
+    public void AttackEnd()
+    {
+        anim.SetBool("attack", false);
+        isAttacking = false;
+    }
+
+    private Vector2 AttackDirection(Vector2 moveDirection, Vector2 direction)
+    {
+        if (rb.velocity.x == 0 && direction.y != 0)
+        {
+            return new Vector2(0, direction.y);
+        }
+
+        return new Vector2(moveDirection.x, direction.y);
+    }
+    // END: Attack
 }
